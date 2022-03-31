@@ -1,0 +1,337 @@
+-- SETTING UP DATA PRIOR TO UNION
+
+-- Checking if NULL start_station_name can be populated by using start_station_id (applied to end_ as well) (applied to all months as well)
+SELECT start_station_id
+FROM hidden-outrider-343312.Cyclistic.trips103
+WHERE start_station_name IS NULL
+
+SELECT start_station_name
+FROM hidden-outrider-343312.Cyclistic.trips103
+WHERE start_station_id IS NULL
+
+SELECT end_station_id
+FROM hidden-outrider-343312.Cyclistic.trips103
+WHERE end_station_name IS NULL
+
+SELECT end_station_name
+FROM hidden-outrider-343312.Cyclistic.trips103
+WHERE end_station_id IS NULL
+-- It was found that everytime start_station_name is NULL, start_station_id is also NULL (same with end_)
+-- start/end_station_id will not be included in UNION
+
+
+-- Checking if start/end_lat/lng can be used to populate start/end_station_name/id if it is NULL
+SELECT DISTINCT 
+    start_lng, 
+    start_lat,
+    start_station_name
+FROM hidden-outrider-343312.Cyclistic.trips103
+-- It was found that the values for start/end_lat/lng are too unreliable to be used to populate start/end_station_name/id
+-- start/end_lat/lng will not be included in UNION
+
+
+
+
+
+-- Combined all data into 1 table through UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips103
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips104
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips105
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips106a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips106b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips107a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips107b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips108a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips108b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips109a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips109b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips110a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips110b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips111
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips112
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips201
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual
+FROM hidden-outrider-343312.Cyclistic.trips202
+-- Exported as total_trips
+
+
+
+
+
+-- PREPARING DATA FOR ANALYSIS
+-- Checking for invalid values
+
+
+-- Checking for negative values for ride_length
+SELECT
+    *
+FROM hidden-outrider-343312.Cyclistic.trips_analysis
+WHERE ride_length < 0
+-- 84 Rows were found to have negative values for ride_length
+-- Deleting rows is not allowed in the sandbox version of BigQuery
+
+-- Checking for values beyond 1 day for ride_length
+-- According to the information re. the company, there are only 3 types of pricing plans: single-ride, full-day, or annual membership
+-- Thus, casual riders cannot exceed 1 day
+SELECT *
+FROM hidden-outrider-343312.Cyclistic.trips_analysis
+WHERE ride_length > 1440 AND member_casual = "casual"
+ORDER BY ride_length DESC
+-- 3572 rows were found to be casual riders with more than 1 day's value of ride_length (1440 minutes)
+-- An error might have occurred for data on casual riders who exceed 1 day, or the user failed to return the bike on time
+
+
+-- Joined both of the above tables with UNION DISTINCT
+SELECT ride_id, member_casual, ride_length
+FROM hidden-outrider-343312.Cyclistic.trips_analysis
+WHERE ride_length < 0
+UNION DISTINCT
+SELECT ride_id, member_casual, ride_length
+FROM hidden-outrider-343312.Cyclistic.trips_analysis
+WHERE ride_length > 1440 AND member_casual = "casual"
+ORDER BY ride_length DESC
+-- The resulting table will be used with the NOT IN clause to filter out all rides within these tables
+-- Exported as except_rides table
+
+
+
+
+
+-- PREPARING DATA FOR ANALYSIS
+
+-- Adding ride_length, day_of_week, and month columns
+SELECT 
+    *,
+    TIMESTAMP_DIFF(ended_at, started_at, MINUTE) AS ride_length,
+    EXTRACT(DAYOFWEEK FROM CAST(started_at AS DATETIME)) AS day_of_week,
+    EXTRACT(MONTH FROM CAST(started_at AS DATETIME)) AS month
+FROM hidden-outrider-343312.Cyclistic.total_trips
+-- Exported as trips_analysis table
+
+
+
+-- Excluding unwanted data from except_table
+SELECT *
+FROM hidden-outrider-343312.Cyclistic.trips_analysis
+WHERE ride_id NOT IN (SELECT ride_id FROM hidden-outrider-343312.Cyclistic.except_rides)
+-- Exported as trips_data
+
+
+
+
+
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips103
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips104
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips105
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips106a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips106b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips107a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips107b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips108a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips108b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips109a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips109b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips110a
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips110b
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips111
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips112
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips201
+UNION DISTINCT
+SELECT ride_id, rideable_type, started_at, ended_at, start_station_name, end_station_name, member_casual, start_lat, start_lng
+FROM hidden-outrider-343312.Cyclistic.trips202
+-- Exported view as trips_with_geo
+
+
+
+
+
+-- DATA ANALYSIS
+
+-- Comparing general statistics of casual riders and annual members
+SELECT 
+    member_casual, 
+    COUNT(*) AS num_trips, 
+    AVG(ride_length) AS average_ride_length,
+FROM hidden-outrider-343312.Cyclistic.trips_data
+GROUP BY member_casual
+-- Exported as total_average_statistics table
+
+
+
+-- Calculating for mod based on the above table
+SELECT member_casual, ride_length, num_trips, rn 
+FROM
+    (SELECT DISTINCT
+        ride_length,
+        member_casual,
+        COUNT(*) AS num_trips,
+        RANK() OVER (PARTITION BY member_casual ORDER BY COUNT(*) DESC) AS rn
+    FROM hidden-outrider-343312.Cyclistic.trips_data
+    GROUP BY ride_length, member_casual)
+WHERE rn = 1
+-- Exported as mode_statistics table
+
+
+
+-- Joining the two generalized statistics above
+SELECT a.member_casual, a.num_trips AS total_trips, ROUND(average_ride_length, 2) AS average_ride_length, b.ride_length AS modal_ride_length
+FROM hidden-outrider-343312.Cyclistic.total_average_statistics AS a
+    INNER JOIN hidden-outrider-343312.Cyclistic.mode_statistics AS b
+    ON a.member_casual = b.member_casual
+-- Exported as summary_statistics table
+
+
+-- Comparing general statistics considering rideable_type between casual riders and annual members
+SELECT 
+    member_casual, 
+    rideable_type, 
+    COUNT(*) AS num_trips, 
+    ROUND(AVG(ride_length), 2) AS average_ride_length, 
+    ROUND(MAX(ride_length), 2) AS max_ride_length, 
+    ROUND(MIN(ride_length), 2) AS min_ride_length
+FROM hidden-outrider-343312.Cyclistic.trips_data
+GROUP BY member_casual, rideable_type
+ORDER BY rideable_type, member_casual
+-- Exported as rideable_stats
+
+
+
+-- Looking into difference between casual riders and members with regards to bike usage across different days of the week 
+SELECT 
+    COUNT(*) AS num_trips, 
+    AVG(ride_length) AS average_ride_length, 
+    day_of_week,
+    member_casual
+FROM hidden-outrider-343312.Cyclistic.trips_data
+GROUP BY member_casual, day_of_week
+ORDER BY member_casual, day_of_week
+-- Exported as day_of_week_stats
+
+
+
+-- Looking into difference between casual riders and members with regards to bike usage across different months
+SELECT 
+    COUNT(*) AS num_trips, 
+    AVG(ride_length) AS average_ride_length, 
+    month,
+    member_casual
+FROM hidden-outrider-343312.Cyclistic.trips_data
+GROUP BY member_casual, month
+ORDER BY member_casual, month
+-- Exported as month_stats
+
+
+
+-- Looking into difference between casual and members with regards to geo
+SELECT
+    DISTINCT start_station_name,
+    AVG(start_lat) AS latitude,
+    AVG(start_lng) AS longitude,
+    COUNT(*) AS trips,
+    member_casual
+FROM hidden-outrider-343312.Cyclistic.trips_with_geo
+WHERE ride_id NOT IN (SELECT ride_id FROM hidden-outrider-343312.Cyclistic.except_rides)
+GROUP BY start_station_name, member_casual
+-- Exported as geo_stats
+
+
+-- Looking into difference between casual and members with regards to bike usage hourly over a single day
+SELECT 
+    CASE WHEN day_of_week > 1 AND day_of_week < 7 THEN "weekday"
+    ELSE "weekend" END AS type_of_day,
+    CASE
+        WHEN TIME(started_at) <= "01:00:00" THEN "01:00"
+        WHEN TIME(started_at) <= "02:00:00" AND TIME(started_at) > "01:00:00" THEN "02:00"
+        WHEN TIME(started_at) <= "03:00:00" AND TIME(started_at) > "02:00:00" THEN "03:00"
+        WHEN TIME(started_at) <= "04:00:00" AND TIME(started_at) > "03:00:00" THEN "04:00"
+        WHEN TIME(started_at) <= "05:00:00" AND TIME(started_at) > "04:00:00" THEN "05:00"
+        WHEN TIME(started_at) <= "06:00:00" AND TIME(started_at) > "05:00:00" THEN "06:00"
+        WHEN TIME(started_at) <= "07:00:00" AND TIME(started_at) > "06:00:00" THEN "07:00"
+        WHEN TIME(started_at) <= "08:00:00" AND TIME(started_at) > "07:00:00" THEN "08:00"
+        WHEN TIME(started_at) <= "09:00:00" AND TIME(started_at) > "08:00:00" THEN "09:00"
+        WHEN TIME(started_at) <= "10:00:00" AND TIME(started_at) > "09:00:00" THEN "10:00"
+        WHEN TIME(started_at) <= "11:00:00" AND TIME(started_at) > "10:00:00" THEN "11:00"
+        WHEN TIME(started_at) <= "12:00:00" AND TIME(started_at) > "11:00:00" THEN "12:00"
+        WHEN TIME(started_at) <= "13:00:00" AND TIME(started_at) > "12:00:00" THEN "13:00"
+        WHEN TIME(started_at) <= "14:00:00" AND TIME(started_at) > "13:00:00" THEN "14:00"
+        WHEN TIME(started_at) <= "15:00:00" AND TIME(started_at) > "14:00:00" THEN "15:00"
+        WHEN TIME(started_at) <= "16:00:00" AND TIME(started_at) > "15:00:00" THEN "16:00"
+        WHEN TIME(started_at) <= "17:00:00" AND TIME(started_at) > "16:00:00" THEN "17:00"
+        WHEN TIME(started_at) <= "18:00:00" AND TIME(started_at) > "17:00:00" THEN "18:00"
+        WHEN TIME(started_at) <= "19:00:00" AND TIME(started_at) > "18:00:00" THEN "19:00"
+        WHEN TIME(started_at) <= "20:00:00" AND TIME(started_at) > "19:00:00" THEN "20:00"
+        WHEN TIME(started_at) <= "21:00:00" AND TIME(started_at) > "20:00:00" THEN "21:00"
+        WHEN TIME(started_at) <= "22:00:00" AND TIME(started_at) > "21:00:00" THEN "22:00"
+        WHEN TIME(started_at) <= "23:00:00" AND TIME(started_at) > "22:00:00" THEN "23:00"
+        ELSE "00:00"
+    END AS time_range,
+    member_casual,
+    COUNT(*) AS trips
+FROM hidden-outrider-343312.Cyclistic.trips_data
+GROUP BY member_casual, time_range, type_of_day
+ORDER BY type_of_day, member_casual, time_range
+--Exported as hourly_stats
+
